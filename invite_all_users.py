@@ -106,18 +106,27 @@ def invite_users_to_channels(token, user_ids, channel_ids):
 st.sidebar.header("📢 Wybierz kanały Slack")
 
 with st.sidebar:
+    # Przycisk odświeżenia kanałów (czyści cache)
+    if st.button("🔄 Odśwież listę kanałów"):
+        get_all_channels.clear()  # czyści cache Streamlit
+        st.experimental_rerun()   # przeładowuje aplikację
+
     with st.spinner("Pobieranie kanałów..."):
         channels = get_all_channels(slack_token)
 
-    if channels:
-        selected_channels = st.multiselect(
-            "Kanały:",
-            options=[c["id"] for c in channels],
-            format_func=lambda cid: next(c["name"] + (" 🔒" if c["is_private"] else "") for c in channels if c["id"] == cid)
-        )
-    else:
+    if not channels:
         st.error("Nie udało się pobrać listy kanałów.")
         st.stop()
+
+    selected_channels = st.multiselect(
+        "Kanały:",
+        options=[c["id"] for c in channels],
+        format_func=lambda cid: next(
+            f"{c['name']}{' 🔒' if c['is_private'] else ''}"
+            for c in channels if c["id"] == cid
+        )
+    )
+
 
 # --- Sekcja użytkowników ---
 with st.spinner("Pobieranie użytkowników..."):
