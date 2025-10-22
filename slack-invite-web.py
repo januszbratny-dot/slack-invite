@@ -2,31 +2,29 @@ import streamlit as st
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-# --- UI Streamlit ---
-st.set_page_config(page_title="Slack Invite Manager", page_icon="🤖", layout="centered")
+# --- Nagłówek aplikacji ---
 st.title("🤖 Slack Invite Manager")
 st.write("Aplikacja do dodawania użytkowników Slack do kanałów.")
 
 # --- Wprowadzenie tokena ---
-slack_token = st.text_input(
-    "Podaj swój Slack **Bot Token** (format: `xoxb-...`):",
+token = st.text_input(
+    "Podaj swój Slack Bot Token (format: xoxb-...):",
     type="password",
-    placeholder="xoxb-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWx"
+    help="Token znajdziesz w Slack API → Your App → OAuth & Permissions → Bot User OAuth Token"
 )
 
-if not slack_token:
-    st.info("🔑 Wprowadź token, aby kontynuować.")
+if not token:
+    st.warning("Podaj token bota, aby kontynuować.")
     st.stop()
 
-# Utworzenie klienta Slack
-client = WebClient(token=slack_token)
+# --- Inicjalizacja klienta Slacka ---
+client = WebClient(token=token)
 
 # --- Funkcje pomocnicze ---
 
 @st.cache_data(show_spinner=False)
-def get_channel_id(token, channel_name):
+def get_channel_id(channel_name):
     """Pobiera ID kanału po nazwie."""
-    client = WebClient(token=token)
     cursor = None
     while True:
         try:
@@ -50,9 +48,8 @@ def get_channel_id(token, channel_name):
 
 
 @st.cache_data(show_spinner=False)
-def get_all_users(token):
+def get_all_users():
     """Pobiera wszystkich użytkowników (bez botów i skasowanych)."""
-    client = WebClient(token=token)
     users = []
     cursor = None
     while True:
@@ -74,9 +71,8 @@ def get_all_users(token):
     return real_users
 
 
-def invite_users_to_channel(token, user_ids, channel_id):
+def invite_users_to_channel(user_ids, channel_id):
     """Dodaje użytkowników do kanału w batchach po 30."""
-    client = WebClient(token=token)
     batch_size = 30
     results = []
     for i in range(0, len(user_ids), batch_size):
@@ -91,43 +87,53 @@ def invite_users_to_channel(token, user_ids, channel_id):
                 results.append(f"❌ Błąd: {e.response['error']} dla batcha {batch}")
     return results
 
+# --- UI: kanał i użytkownicy ---
 
-# --- UI: Wprowadzanie kanału ---
 channel_name = st.text_input("Podaj nazwę kanału (bez #):", placeholder="np. projekty")
 
 if channel_name:
-    with st.spinner("Pobieranie ID kanału..."):
-        channel_id = get_channel_id(slack_token, channel_name)
+    with st.spinner("🔍 Szukanie kanału..."):
+        channel_id = get_channel_id(channel_name)
 
     if not channel_id:
         st.error(f"Nie znaleziono kanału **{channel_name}**.")
+        st.stop()
     else:
         st.success(f"Znaleziono kanał `{channel_name}` (ID: {channel_id})")
 
-        # Pobieranie użytkowników
-        with st.spinner("Pobieranie użytkowników..."):
-            users = get_all_users(slack_token)
+        with st.spinner("📥 Pobieranie listy użytkowników..."):
+            users = get_all_users()
 
         if users:
             st.write(f"👥 Znaleziono {len(users)} aktywnych użytkowników w workspace.")
-            # Lista wyboru użytkowników
+
+            # Multiselect użytkowników
             selected_users = st.multiselect(
                 "Wybierz użytkowników do dodania:",
                 options=[u["id"] for u in users],
                 format_func=lambda uid: next(u["name"] for u in users if u["id"] == uid)
             )
 
-            if selected_users:
-                st.info(f"Wybrano {len(selected_users)} użytkowników.")
+            col1, col2 = st.columns(2)
 
-                # Przycisk do dodania
-                if st.button("🚀 Dodanie wybranych użytkowników do wybranego kanału"):
-                    with st.spinner("Dodawanie użytkowników..."):
-                        results = invite_users_to_channel(slack_token, selected_users, channel_id)
+            # Przycisk: Dodaj wybranych
+            with col1:
+                if st.button("🚀 Dodaj wybranych użytkowników"):
+                    if not selected_users:
+                        st.warning("Nie wybrano żadnych użytkowników.")
+                    else:
+                        with st.spinner("Dodawanie wybranych użytkowników..."):
+                            results = invite_users_to_channel(selected_users, channel_id)
+                        for res in results:
+                            st.write(res)
 
+            # Przycisk: Dodaj wszystkich
+            with col2:
+                if st.button("👥 Dodaj wszystkich użytkowników"):
+                    all_user_ids = [u["id"] for u in users]
+                    with st.spinner("Dodawanie wszystkich użytkowników..."):
+                        results = invite_users_to_channel(all_user_ids, channel_id)
                     for res in results:
                         st.write(res)
-            else:
-                st.warning("Nie wybrano żadnych użytkowników.")
         else:
             st.error("Nie udało się pobrać listy użytkowników.")
