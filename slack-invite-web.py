@@ -1,24 +1,32 @@
-import os
 import streamlit as st
-from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-# --- Konfiguracja i ładowanie tokena ---
-load_dotenv()
-SLACK_TOKEN = os.getenv("SLACK_TOKEN")
+# --- UI Streamlit ---
+st.set_page_config(page_title="Slack Invite Manager", page_icon="🤖", layout="centered")
+st.title("🤖 Slack Invite Manager")
+st.write("Aplikacja do dodawania użytkowników Slack do kanałów.")
 
-if not SLACK_TOKEN:
-    st.error("❌ Brakuje SLACK_TOKEN w pliku .env")
+# --- Wprowadzenie tokena ---
+slack_token = st.text_input(
+    "Podaj swój Slack **Bot Token** (format: `xoxb-...`):",
+    type="password",
+    placeholder="xoxb-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWx"
+)
+
+if not slack_token:
+    st.info("🔑 Wprowadź token, aby kontynuować.")
     st.stop()
 
-client = WebClient(token=SLACK_TOKEN)
+# Utworzenie klienta Slack
+client = WebClient(token=slack_token)
 
 # --- Funkcje pomocnicze ---
 
 @st.cache_data(show_spinner=False)
-def get_channel_id(channel_name):
+def get_channel_id(token, channel_name):
     """Pobiera ID kanału po nazwie."""
+    client = WebClient(token=token)
     cursor = None
     while True:
         try:
@@ -42,8 +50,9 @@ def get_channel_id(channel_name):
 
 
 @st.cache_data(show_spinner=False)
-def get_all_users():
+def get_all_users(token):
     """Pobiera wszystkich użytkowników (bez botów i skasowanych)."""
+    client = WebClient(token=token)
     users = []
     cursor = None
     while True:
@@ -65,8 +74,9 @@ def get_all_users():
     return real_users
 
 
-def invite_users_to_channel(user_ids, channel_id):
+def invite_users_to_channel(token, user_ids, channel_id):
     """Dodaje użytkowników do kanału w batchach po 30."""
+    client = WebClient(token=token)
     batch_size = 30
     results = []
     for i in range(0, len(user_ids), batch_size):
@@ -81,17 +91,13 @@ def invite_users_to_channel(user_ids, channel_id):
                 results.append(f"❌ Błąd: {e.response['error']} dla batcha {batch}")
     return results
 
-# --- UI Streamlit ---
 
-st.title("🤖 Slack Invite Manager")
-st.write("Aplikacja do dodawania użytkowników Slack do kanałów.")
-
-# Wprowadzenie nazwy kanału
+# --- UI: Wprowadzanie kanału ---
 channel_name = st.text_input("Podaj nazwę kanału (bez #):", placeholder="np. projekty")
 
 if channel_name:
     with st.spinner("Pobieranie ID kanału..."):
-        channel_id = get_channel_id(channel_name)
+        channel_id = get_channel_id(slack_token, channel_name)
 
     if not channel_id:
         st.error(f"Nie znaleziono kanału **{channel_name}**.")
@@ -100,7 +106,7 @@ if channel_name:
 
         # Pobieranie użytkowników
         with st.spinner("Pobieranie użytkowników..."):
-            users = get_all_users()
+            users = get_all_users(slack_token)
 
         if users:
             st.write(f"👥 Znaleziono {len(users)} aktywnych użytkowników w workspace.")
@@ -117,7 +123,7 @@ if channel_name:
                 # Przycisk do dodania
                 if st.button("🚀 Dodanie wybranych użytkowników do wybranego kanału"):
                     with st.spinner("Dodawanie użytkowników..."):
-                        results = invite_users_to_channel(selected_users, channel_id)
+                        results = invite_users_to_channel(slack_token, selected_users, channel_id)
 
                     for res in results:
                         st.write(res)
