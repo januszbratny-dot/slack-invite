@@ -1,12 +1,12 @@
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from dotenv import load_dotenv
+import os
 
-# ------------------------------
-# Ustawienia
-# ------------------------------
-SLACK_TOKEN = "xoxb-xxxxxxxxxxxxxxxxxxxx"  # Twój Bot/User Token
-CHANNEL_ID = "C0123456789"  # ID kanału, do którego dodajemy użytkowników
-# ------------------------------
+load_dotenv()  # wczytuje zmienne z pliku .env
+
+SLACK_TOKEN = os.getenv("SLACK_TOKEN")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 client = WebClient(token=SLACK_TOKEN)
 
