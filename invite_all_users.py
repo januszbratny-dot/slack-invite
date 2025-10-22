@@ -109,7 +109,7 @@ with st.sidebar:
     # Przycisk odświeżenia kanałów (czyści cache)
     if st.button("🔄 Odśwież listę kanałów"):
         get_all_channels.clear()  # czyści cache Streamlit
-        st.experimental_rerun()   # przeładowuje aplikację
+        st.rerun()   # przeładowuje aplikację
 
     with st.spinner("Pobieranie kanałów..."):
         channels = get_all_channels(slack_token)
